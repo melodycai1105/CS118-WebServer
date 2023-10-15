@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
+#include <iostream>
 #include <fstream>
 #include <string>
 using namespace std;
@@ -153,15 +154,42 @@ void handle_request(struct server_app *app, int client_socket) {
     // TODO: Parse the header and extract essential fields, e.g. file name
     // Hint: if the requested path is "/" (root), default to index.html
     char file_name[] = "index.html";
+    
+    string fn = "";
+    int i = 5;
+    // whitespace: space, tab, newlines
+    // contains %
+    // "GET /index.html HTTP/1.1\r\n"
 
-    //two functionalities: serve a file, 
+    while(request[i]!='\r')
+    {
+        fn += request[i];
+        i++;
+    }
+
+    int length = fn.size();
+    int file_name_length = length-9;
+
+
+    if(request[5]!='\r')
+    {
+        string temp_fn = fn.substr(0,file_name_length); 
+        char* char_array = new char[file_name_length + 1]; 
+        strcpy(char_array, temp_fn.c_str());
+        serve_local_file(client_socket, char_array);
+    }
+    else
+    {
+        serve_local_file(client_socket, file_name);
+    }
 
     // TODO: Implement proxy and call the function under condition
     // specified in the spec
     // if (need_proxy(...)) {
     //    proxy_remote_file(app, client_socket, file_name);
     // } else {
-    serve_local_file(client_socket, file_name);
+    //serve_local_file(client_socket, file_name);
+
     //}
 }
 
@@ -176,6 +204,8 @@ void serve_local_file(int client_socket, const char *path) {
     // * Also send file content
     // (When the requested file does not exist):
     // * Generate a correct response
+    // char arr[strlen(path) + 1];  
+    // strcpy(arr, path);
 
     bool is_extension = false;
     string file_extension = "";
@@ -227,6 +257,7 @@ void serve_local_file(int client_socket, const char *path) {
     strcpy(response, content_type.c_str());
 
 
+    //send(client_socket, arr, strlen(arr), 0);
     send(client_socket, response, strlen(response), 0);
 }
 
