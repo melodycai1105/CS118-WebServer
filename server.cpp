@@ -16,6 +16,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <filesystem>
 using namespace std;
 
 /**
@@ -171,7 +172,7 @@ void handle_request(struct server_app *app, int client_socket) {
     int file_name_length = length-9;
 
 
-    if(request[5]!='\r')
+    if(file_name_length)
     {
         string temp_fn = fn.substr(0,file_name_length); 
         char* char_array = new char[file_name_length + 1]; 
@@ -226,38 +227,47 @@ void serve_local_file(int client_socket, const char *path) {
     string content_type = "";
     if (is_extension){
         if (file_extension == "html" || file_extension == "txt"){
-            content_type = "Content-Type: text/plain; charset=UTF-8\r\n";
+            content_type = "text/plain; charset=UTF-8";
         } else if (file_extension == "jpg" || file_extension == "jpeg"){
-            content_type =  "Content-Type: image/jpeg\r\n";
+            content_type =  "image/jpeg";
         }
     } else {
-            content_type =  "Content-Type: application/octet-stream\r\n";
+            content_type =  "application/octet-stream";
     }
 
-    // ifstream file;
-    // string status_code = "";
-    // string response_body = "";
-    // file.open(path);
-    // if (file){
+    ifstream file;
+    string temp_line = "";
+    string status_code = "";
+    string response_body = "";
+    file.open(path, std::ios::binary | ios::in);
+    if (file){
+        status_code = "HTTP/1.0 200 OK";
+        if (file.is_open()){
+            while (file){
+                getline(file, temp_line);
+                response_body += temp_line + "\n";
+            }
+        }
+    } else {
+        status_code = "HTTP/1.0 404 NOT FOUND";
+    }
 
-    // } else {
-    //     status_code = "HTTP/1.0 404 NOT FOUND\r\n";
-    // }
+    int response_body_length= response_body.size();
+    response_body = response_body.substr(0,response_body_length -1);
   
-    // char status_code[] = "HTTP/1.0 200 OK\r\n";
-    // char content_length[] = "Content-Length: 15\r\n";
-    // char response_data [] = "";
-    // char response[] = "HTTP/1.0 200 OK\r\n"
-    //                   "Content-Type: text/plain; charset=UTF-8\r\n"
-    //                   "Content-Length: 15\r\n"
-    //                   "\r\n"
-    //                   "Sample response";
-    // string response = content_type;
-    char response[content_type.size()+1];
-    strcpy(response, content_type.c_str());
+    string content_length = "";
+    // if (file_extension == "jpg" || file_extension == "jpeg"){
+    //     content_length = file_size(path(path));
+    // } else {
+    content_length = to_string(response_body.size());
+    // }
+
+    string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
+    + content_length + "\r\n\r\n" + response_body;
 
 
-    //send(client_socket, arr, strlen(arr), 0);
+    char response[response_str.size()+1];
+    strcpy(response, response_str.c_str());
     send(client_socket, response, strlen(response), 0);
 }
 
