@@ -13,6 +13,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <netinet/in.h>
+#include <fstream>
+#include <string>
+using namespace std;
 
 /**
  * Project 1 starter code
@@ -174,11 +177,55 @@ void serve_local_file(int client_socket, const char *path) {
     // (When the requested file does not exist):
     // * Generate a correct response
 
-    char response[] = "HTTP/1.0 200 OK\r\n"
-                      "Content-Type: text/plain; charset=UTF-8\r\n"
-                      "Content-Length: 15\r\n"
-                      "\r\n"
-                      "Sample response";
+    bool is_extension = false;
+    string file_extension = "";
+    for (int i = strlen(path) - 1; i >= 0; i --){
+        if (path[i] == '.'){
+            int length = (strlen(path)-1) - i;
+            char *extension = (char *)malloc(length);
+            strcpy(extension, &path[i+1]);
+            file_extension = extension;
+            if (strcmp(extension, "html") == 0 || strcmp(extension, "txt") == 0 || strcmp(extension, "jpg") == 0 || strcmp(extension, "jpeg") == 0){
+                is_extension = true;
+            }
+        }else{
+            continue;
+        }
+    }
+
+    string content_type = "";
+    if (is_extension){
+        if (file_extension == "html" || file_extension == "txt"){
+            content_type = "Content-Type: text/plain; charset=UTF-8\r\n";
+        } else if (file_extension == "jpg" || file_extension == "jpeg"){
+            content_type =  "Content-Type: image/jpeg\r\n";
+        }
+    } else {
+            content_type =  "Content-Type: application/octet-stream\r\n";
+    }
+
+    // ifstream file;
+    // string status_code = "";
+    // string response_body = "";
+    // file.open(path);
+    // if (file){
+
+    // } else {
+    //     status_code = "HTTP/1.0 404 NOT FOUND\r\n";
+    // }
+  
+    // char status_code[] = "HTTP/1.0 200 OK\r\n";
+    // char content_length[] = "Content-Length: 15\r\n";
+    // char response_data [] = "";
+    // char response[] = "HTTP/1.0 200 OK\r\n"
+    //                   "Content-Type: text/plain; charset=UTF-8\r\n"
+    //                   "Content-Length: 15\r\n"
+    //                   "\r\n"
+    //                   "Sample response";
+    // string response = content_type;
+    char response[content_type.size()+1];
+    strcpy(response, content_type.c_str());
+
 
     send(client_socket, response, strlen(response), 0);
 }
