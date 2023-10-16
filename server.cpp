@@ -226,8 +226,10 @@ void serve_local_file(int client_socket, const char *path) {
 
     string content_type = "";
     if (is_extension){
-        if (file_extension == "html" || file_extension == "txt"){
+        if (file_extension == "txt"){
             content_type = "text/plain; charset=UTF-8";
+        } else if (file_extension == "html"){
+            content_type = "text/html; charset=UTF-8";
         } else if (file_extension == "jpg" || file_extension == "jpeg"){
             content_type =  "image/jpeg";
         }
@@ -235,10 +237,7 @@ void serve_local_file(int client_socket, const char *path) {
             content_type =  "application/octet-stream";
     }
 
-    ifstream file;
-    string temp_line = "";
-    string status_code = "";
-    string response_body = "";
+    /*
     file.open(path, std::ios::binary | ios::in);
     if (file){
         status_code = "HTTP/1.0 200 OK";
@@ -251,24 +250,44 @@ void serve_local_file(int client_socket, const char *path) {
     } else {
         status_code = "HTTP/1.0 404 NOT FOUND";
     }
-
-    int response_body_length= response_body.size();
-    response_body = response_body.substr(0,response_body_length -1);
-  
+*/
+    string status_code = "HTTP/1.0 404 NOT FOUND";
     string content_length = "";
+    FILE* fp;
+    fp = fopen(path, "rb");
+
+    if (fseek(fp, 0, SEEK_END) == -1)
+    {
+        perror("failed to fseek %s\n");
+        send(client_socket, status_code.c_str(), strlen(status_code.c_str()), 0);
+        return;
+    } 
+
+    size_t off = ftell(fp);
+    content_length = to_string(off);
+    fclose(fp);
+    fp = fopen(path, "rb");
+    char buffer[off];
+    fread(buffer,off,1,fp);
+    status_code = "HTTP/1.0 200 OK";
+
+    // int response_body_length= response_body.size();
+    // response_body = response_body.substr(0,response_body_length -1);
+  
     // if (file_extension == "jpg" || file_extension == "jpeg"){
     //     content_length = file_size(path(path));
     // } else {
-    content_length = to_string(response_body.size());
-    // }
 
+    // }
     string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
-    + content_length + "\r\n\r\n" + response_body;
+    + content_length + "\r\n\r\n";
 
 
     char response[response_str.size()+1];
-    strcpy(response, response_str.c_str());
+    memcpy(response, response_str.c_str(), response_str.size());
     send(client_socket, response, strlen(response), 0);
+    send(client_socket, buffer, off, 0);
+    // multiple send
 }
 
 void proxy_remote_file(struct server_app *app, int client_socket, const char *request) {
