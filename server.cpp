@@ -164,19 +164,37 @@ void handle_request(struct server_app *app, int client_socket) {
 
     while(request[i]!='\r')
     {
-        fn += request[i];
-        i++;
+        if(request[i]=='%')
+        {
+            if(request[i+1]=='2' && request[i+2]=='5')
+            {
+                fn += "%";
+                i+=2;
+            }
+            else if (request[i+1]=='2' && request[i+2]=='0')
+            {
+                fn += " ";
+                i+=2;
+            }
+            else{
+                fn += request[i];
+            }
+        }
+        else{
+            fn += request[i];
+        }
+        i+=1;
     }
 
-    int length = fn.size();
-    int file_name_length = length-9;
+    size_t length = fn.size();
+    size_t file_name_length = length-9;
 
 
     if(file_name_length)
     {
         string temp_fn = fn.substr(0,file_name_length); 
         char* char_array = new char[file_name_length + 1]; 
-        strcpy(char_array, temp_fn.c_str());
+        memcpy(char_array, temp_fn.c_str(), file_name_length+1);
         serve_local_file(client_socket, char_array);
     }
     else
@@ -184,6 +202,7 @@ void handle_request(struct server_app *app, int client_socket) {
         serve_local_file(client_socket, file_name);
     }
 
+    
     // TODO: Implement proxy and call the function under condition
     // specified in the spec
     // if (need_proxy(...)) {
@@ -256,20 +275,35 @@ void serve_local_file(int client_socket, const char *path) {
     FILE* fp;
     fp = fopen(path, "rb");
 
-    if (fseek(fp, 0, SEEK_END) == -1)
+    if (!fp || fseek(fp, 0, SEEK_END) == -1)
     {
-        perror("failed to fseek %s\n");
+        //perror("failed to fseek %s\n");
+        string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
+    + content_length + "\r\n\r\n";
         send(client_socket, status_code.c_str(), strlen(status_code.c_str()), 0);
-        return;
+        char response[response_str.size()+1];
+        memcpy(response, response_str.c_str(), response_str.size());
+        send(client_socket, response, strlen(response), 0);
+        //return;
     } 
+    else{
+        status_code = "HTTP/1.0 200 OK";
+        size_t off = ftell(fp);
+        content_length = to_string(off);
+        fclose(fp);
+        fp = fopen(path, "rb");
+        char buffer[off];
+        fread(buffer,off,1,fp);
 
-    size_t off = ftell(fp);
-    content_length = to_string(off);
-    fclose(fp);
-    fp = fopen(path, "rb");
-    char buffer[off];
-    fread(buffer,off,1,fp);
-    status_code = "HTTP/1.0 200 OK";
+        string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
+    + content_length + "\r\n\r\n";
+        char response[response_str.size()+1];
+        memcpy(response, response_str.c_str(), response_str.size());
+        send(client_socket, response, strlen(response), 0);
+        
+        send(client_socket, buffer, off, 0);
+    }
+
 
     // int response_body_length= response_body.size();
     // response_body = response_body.substr(0,response_body_length -1);
@@ -279,14 +313,7 @@ void serve_local_file(int client_socket, const char *path) {
     // } else {
 
     // }
-    string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
-    + content_length + "\r\n\r\n";
 
-
-    char response[response_str.size()+1];
-    memcpy(response, response_str.c_str(), response_str.size());
-    send(client_socket, response, strlen(response), 0);
-    send(client_socket, buffer, off, 0);
     // multiple send
 }
 
