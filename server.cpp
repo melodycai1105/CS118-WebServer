@@ -250,7 +250,7 @@ void serve_local_file(int client_socket, const char *path) {
         } else if (file_extension == "html"){
             content_type = "text/html; charset=UTF-8";
         } else if (file_extension == "jpg" || file_extension == "jpeg"){
-            content_type =  "image/jpeg";
+            content_type =  "image/jpg";
         }
     } else {
             content_type =  "application/octet-stream";
@@ -280,8 +280,7 @@ void serve_local_file(int client_socket, const char *path) {
         //perror("failed to fseek %s\n");
         string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
     + content_length + "\r\n\r\n";
-        send(client_socket, status_code.c_str(), strlen(status_code.c_str()), 0);
-        char response[response_str.size()+1];
+        char response[response_str.size()];
         memcpy(response, response_str.c_str(), response_str.size());
         send(client_socket, response, strlen(response), 0);
         //return;
@@ -297,10 +296,9 @@ void serve_local_file(int client_socket, const char *path) {
 
         string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
     + content_length + "\r\n\r\n";
-        char response[response_str.size()+1];
+        char response[response_str.size()];
         memcpy(response, response_str.c_str(), response_str.size());
         send(client_socket, response, strlen(response), 0);
-        
         send(client_socket, buffer, off, 0);
     }
 
