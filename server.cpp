@@ -204,6 +204,8 @@ void handle_request(struct server_app *app, int client_socket) {
             if(extension==".ts")
             {
                 proxy_remote_file(app, client_socket, char_array);
+            } else {
+                serve_local_file(client_socket, char_array);
             }
         }
         else
@@ -339,42 +341,76 @@ void proxy_remote_file(struct server_app *app, int client_socket, const char *re
     // * When connection to the remote server fail, properly generate
     // HTTP 502 "Bad Gateway" response
 
-    int status, valread, client_fd;
-    struct sockaddr_in serv_addr;
-    char* hello = "Hello from client";
-    char buffer[1024] = { 0 };
-    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("\n Socket creation error \n");
-        return;
+    int status, valread, remote_fd;
+    struct sockaddr_in remote_addr;
+
+    if ((remote_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("\n Socket creation error \n");
+        exit(EXIT_FAILURE);
     }
  
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(app->remote_port);
+    remote_addr.sin_family = AF_INET;
+    remote_addr.sin_port = htons(app->remote_port);
  
     // Convert IPv4 and IPv6 addresses from text to binary
-    // form
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)
-        <= 0) {
-        printf(
-            "\nInvalid address/ Address not supported \n");
-            return;
+    if (inet_pton(AF_INET, app->remote_host, &remote_addr.sin_addr)<= 0) {
+        perror("\nInvalid address/ Address not supported \n");
+        exit(EXIT_FAILURE);
     }
  
-    if ((status
-         = connect(client_fd, (struct sockaddr*)&serv_addr,
-                   sizeof(serv_addr)))
-        < 0) {
-        printf("\nConnection Failed \n");
+    if ((status = connect(remote_fd, (struct sockaddr*)&remote_addr, sizeof(remote_addr))) < 0) {
+        perror("\nConnection Failed \n");
+        exit(EXIT_FAILURE);
+    }
+
+    send(remote_fd, request, strlen(request), 0);
+/*
+    char buffer[1024];
+    int bytesRead;
+
+    // Read status line
+    bytesRead = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytesRead <= 0) {
+        perror("recv");
         return;
     }
-    send(client_fd, hello, strlen(hello), 0);
-    printf("Hello message sent\n");
-    valread = read(client_fd, buffer, 1024 - 1); // subtract 1 for the null terminator at the end
-    printf("%s\n", buffer);
+    buffer[bytesRead] = '\0'; //maybe changing?
+
+    // Read headers
+    while (strstr(buffer, "\r\n\r\n") == NULL) {
+        bytesRead = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+        if (bytesRead <= 0) {
+            perror("recv");
+            return;
+        }
+        buffer[bytesRead] = '\0';
+        printf("%s", buffer);
+    }
+
+    // If Content-Length header exists, use it to read body
+    char *contentLengthPtr = strstr(buffer, "Content-Length: ");
+    if (contentLengthPtr) {
+        int length = atoi(contentLengthPtr + 15); // Length of "Content-Length: " is 15
+        char *body = (char *)malloc(length + 1);
+        if (!body) {
+            perror("malloc");
+            return;
+        }
+        bytesRead = recv(sockfd, body, length, 0);
+        body[bytesRead] = '\0';
+        printf("%s", body);
+        free(body);
+    }
+    // Additional logic for Transfer-Encoding: chunked goes here
+    // Not implemented for simplicity
+*/
+    char buffer[2048] = {0};
+
+    read(remote_fd, buffer, 2048 - 1); // subtract 1 for the null terminator at the end
  
     // closing the connected socket
-    close(client_fd);
+    close(remote_fd);
 
-    char response[] = "HTTP/1.0 501 Not Implemented\r\n\r\n";
-    send(client_socket, response, strlen(response), 0);
+    // char response[] = "HTTP/1.0 501 Not Implemented\r\n\r\n";
+    send(client_socket, buffer, sizeof(buffer), 0); 
 }
