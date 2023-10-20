@@ -189,13 +189,27 @@ void handle_request(struct server_app *app, int client_socket) {
     size_t length = fn.size();
     size_t file_name_length = length-9;
 
-
+    
     if(file_name_length)
     {
         string temp_fn = fn.substr(0,file_name_length); 
+        size_t length = temp_fn.size();
+
         char* char_array = new char[file_name_length + 1]; 
         memcpy(char_array, temp_fn.c_str(), file_name_length+1);
-        serve_local_file(client_socket, char_array);
+
+        if(length>=3)
+        {
+            string extension = temp_fn.substr(length-3,length);
+            if(extension==".ts")
+            {
+                proxy_remote_file(app, client_socket, char_array);
+            }
+        }
+        else
+        {
+            serve_local_file(client_socket, char_array);
+        }
     }
     else
     {
@@ -237,6 +251,10 @@ void serve_local_file(int client_socket, const char *path) {
             file_extension = extension;
             if (strcmp(extension, "html") == 0 || strcmp(extension, "txt") == 0 || strcmp(extension, "jpg") == 0 || strcmp(extension, "jpeg") == 0){
                 is_extension = true;
+            }
+            if (strcmp(extension, "ts") == 0)
+            {
+
             }
         }else{
             continue;
