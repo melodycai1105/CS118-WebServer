@@ -252,10 +252,6 @@ void serve_local_file(int client_socket, const char *path) {
             if (strcmp(extension, "html") == 0 || strcmp(extension, "txt") == 0 || strcmp(extension, "jpg") == 0 || strcmp(extension, "jpeg") == 0){
                 is_extension = true;
             }
-            if (strcmp(extension, "ts") == 0)
-            {
-
-            }
         }else{
             continue;
         }
@@ -268,7 +264,7 @@ void serve_local_file(int client_socket, const char *path) {
         } else if (file_extension == "html"){
             content_type = "text/html; charset=UTF-8";
         } else if (file_extension == "jpg" || file_extension == "jpeg"){
-            content_type =  "image/jpeg";
+            content_type =  "image/jpg";
         }
     } else {
             content_type =  "application/octet-stream";
@@ -317,7 +313,6 @@ void serve_local_file(int client_socket, const char *path) {
         char response[response_str.size()];
         memcpy(response, response_str.c_str(), response_str.size());
         send(client_socket, response, strlen(response), 0);
-        
         send(client_socket, buffer, off, 0);
     }
 
@@ -343,6 +338,42 @@ void proxy_remote_file(struct server_app *app, int client_socket, const char *re
     // Bonus:
     // * When connection to the remote server fail, properly generate
     // HTTP 502 "Bad Gateway" response
+
+    int status, valread, client_fd;
+    struct sockaddr_in serv_addr;
+    char* hello = "Hello from client";
+    char buffer[1024] = { 0 };
+    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("\n Socket creation error \n");
+        return;
+    }
+ 
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(app->remote_port);
+ 
+    // Convert IPv4 and IPv6 addresses from text to binary
+    // form
+    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)
+        <= 0) {
+        printf(
+            "\nInvalid address/ Address not supported \n");
+            return;
+    }
+ 
+    if ((status
+         = connect(client_fd, (struct sockaddr*)&serv_addr,
+                   sizeof(serv_addr)))
+        < 0) {
+        printf("\nConnection Failed \n");
+        return;
+    }
+    send(client_fd, hello, strlen(hello), 0);
+    printf("Hello message sent\n");
+    valread = read(client_fd, buffer, 1024 - 1); // subtract 1 for the null terminator at the end
+    printf("%s\n", buffer);
+ 
+    // closing the connected socket
+    close(client_fd);
 
     char response[] = "HTTP/1.0 501 Not Implemented\r\n\r\n";
     send(client_socket, response, strlen(response), 0);
