@@ -198,23 +198,23 @@ void handle_request(struct server_app *app, int client_socket) {
         char* char_array = new char[file_name_length + 1]; 
         memcpy(char_array, temp_fn.c_str(), file_name_length+1);
 
-        if(length>=3)
-        {
-            string extension = temp_fn.substr(length-3,length);
-            if(extension==".ts")
-            {
-                proxy_remote_file(app, client_socket, char_array);
-            } else {
-                serve_local_file(client_socket, char_array);
+        string file_extension = "";
+        for (int i = strlen(char_array) - 1; i >= 0; i --){
+            if (char_array[i] == '.'){
+                int length = (strlen(char_array)-1) - i;
+                char *extension = (char *)malloc(length);
+                strcpy(extension, &char_array[i+1]);
+                file_extension = extension;
+            }else{
+                continue;
             }
         }
-        else
-        {
+        if(file_extension == "ts"){
+            proxy_remote_file(app, client_socket, request);
+        } else {
             serve_local_file(client_socket, char_array);
         }
-    }
-    else
-    {
+    }else{
         serve_local_file(client_socket, file_name);
     }
 
@@ -266,7 +266,7 @@ void serve_local_file(int client_socket, const char *path) {
         } else if (file_extension == "html"){
             content_type = "text/html; charset=UTF-8";
         } else if (file_extension == "jpg" || file_extension == "jpeg"){
-            content_type =  "image/jpg";
+            content_type =  "image/jpeg";
         }
     } else {
             content_type =  "application/octet-stream";
@@ -296,8 +296,10 @@ void serve_local_file(int client_socket, const char *path) {
         //perror("failed to fseek %s\n");
         string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
     + content_length + "\r\n\r\n";
-        char response[response_str.size()];
+        char *response = (char *)malloc(response_str.size() + 1);
+        // char response[response_str.size()];
         memcpy(response, response_str.c_str(), response_str.size());
+        response[response_str.size()] = '\0';
         send(client_socket, response, strlen(response), 0);
         //return;
     } 
@@ -312,8 +314,10 @@ void serve_local_file(int client_socket, const char *path) {
 
         string response_str = status_code + "\r\n" + "Content-Type: " + content_type + "\r\n" + "Content-Length: " 
     + content_length + "\r\n\r\n";
-        char response[response_str.size()];
+        // char response[response_str.size()];
+        char *response = (char *)malloc(response_str.size() + 1);
         memcpy(response, response_str.c_str(), response_str.size());
+        response[response_str.size()] = '\0';
         send(client_socket, response, strlen(response), 0);
         send(client_socket, buffer, off, 0);
     }
@@ -335,35 +339,49 @@ void proxy_remote_file(struct server_app *app, int client_socket, const char *re
     // TODO: Implement proxy request and replace the following code
     // What's needed:
     // * Connect to remote server (app->remote_server/app->remote_port)
-    // * Forward the original request to the remote server
-    // * Pass the response from remote server back
-    // Bonus:
-    // * When connection to the remote server fail, properly generate
-    // HTTP 502 "Bad Gateway" response
-
-    int status, valread, remote_fd;
+//     // * Forward the original request to the remote server
+//     // * Pass the response from remote server back
+//     // Bonus:
+//     // * When connection to the remote server fail, properly generate
+//     // HTTP 502 "Bad Gateway" response
+    int status, remote_fd;
     struct sockaddr_in remote_addr;
-
-    if ((remote_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("\n Socket creation error \n");
+    remote_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (remote_fd < 0) {
+        printf("\n Socket creation error \n");
         exit(EXIT_FAILURE);
     }
+
  
     remote_addr.sin_family = AF_INET;
+    remote_addr.sin_addr.s_addr = INADDR_ANY;
     remote_addr.sin_port = htons(app->remote_port);
  
     // Convert IPv4 and IPv6 addresses from text to binary
     if (inet_pton(AF_INET, app->remote_host, &remote_addr.sin_addr)<= 0) {
-        perror("\nInvalid address/ Address not supported \n");
-        exit(EXIT_FAILURE);
-    }
- 
-    if ((status = connect(remote_fd, (struct sockaddr*)&remote_addr, sizeof(remote_addr))) < 0) {
-        perror("\nConnection Failed \n");
+        printf("\nInvalid address/ Address not supported \n");
         exit(EXIT_FAILURE);
     }
 
-    send(remote_fd, request, strlen(request), 0);
+    // send(client_socket, request, strlen(request), 0);
+    if ((connect(remote_fd, (struct sockaddr*)&remote_addr, sizeof(remote_addr))) < 0) {
+        printf("\nConnection Failed \n");
+        exit(EXIT_FAILURE);
+    }
+
+    if ((send(remote_fd, request, strlen(request), 0)) < 0) {
+        printf("Send Failed \n");
+        exit(EXIT_FAILURE);
+    }
+    // send(remote_fd, request, strlen(request), 0);
+
+    // char response[] = "HTTP/1.0 200 OK\r\n"
+    //                   "Content-Type: text/plain; charset=UTF-8\r\n"
+    //                   "Content-Length: 15\r\n"
+    //                   "\r\n"
+    //                   "Sample response";
+    // send(client_socket, response, strlen(response), 0);
+
 /*
     char buffer[1024];
     int bytesRead;
@@ -376,41 +394,63 @@ void proxy_remote_file(struct server_app *app, int client_socket, const char *re
     }
     buffer[bytesRead] = '\0'; //maybe changing?
 
-    // Read headers
-    while (strstr(buffer, "\r\n\r\n") == NULL) {
-        bytesRead = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
-        if (bytesRead <= 0) {
-            perror("recv");
-            return;
-        }
-        buffer[bytesRead] = '\0';
-        printf("%s", buffer);
-    }
+    // // Read headers
+    // while (strstr(buffer, "\r\n\r\n") == NULL) {
+    //     bytesRead = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+    //     if (bytesRead <= 0) {
+    //         perror("recv");
+    //         return;
+    //     }
+    //     buffer[bytesRead] = '\0';
+    //     printf("%s", buffer);
+    // }
 
+    char *response;
     // If Content-Length header exists, use it to read body
     char *contentLengthPtr = strstr(buffer, "Content-Length: ");
+    char *body;
     if (contentLengthPtr) {
         int length = atoi(contentLengthPtr + 15); // Length of "Content-Length: " is 15
-        char *body = (char *)malloc(length + 1);
+        body = (char *)malloc(length + 1);
         if (!body) {
             perror("malloc");
             return;
         }
-        bytesRead = recv(sockfd, body, length, 0);
+        bytesRead = recv(remote_fd, body, length, 0);
         body[bytesRead] = '\0';
-        printf("%s", body);
-        free(body);
+        response = (char *)malloc(strlen(buffer) + strlen(body) + 1);
     }
+
+    strncat(response, buffer, strlen(buffer));
+    strncat(response, body, strlen(body));
+*/
+
     // Additional logic for Transfer-Encoding: chunked goes here
     // Not implemented for simplicity
-*/
-    char buffer[2048] = {0};
 
-    read(remote_fd, buffer, 2048 - 1); // subtract 1 for the null terminator at the end
- 
-    // closing the connected socket
-    close(remote_fd);
+    char buffer[BUFFER_SIZE];
+    ssize_t bytes_read;
 
+    bytes_read = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_read <= 0) {
+        return;  // Connection closed or error
+    }
+
+    // buffer[bytes_read] = '\0';
+    // copy buffer to a new string
+    char *response = (char *)malloc(strlen(buffer) + 1);
+    strcpy(response, buffer);
+
+    char *buffer = (char *)malloc(2049);
+    ssize_t bytes_read;
+
+    bytes_read = recv(remote_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_read <= 0) {
+        printf("Can't read\n");
+        return;  // Connection closed or error
+    }
+
+    buffer[bytes_read] = '\0';
     // char response[] = "HTTP/1.0 501 Not Implemented\r\n\r\n";
     send(client_socket, buffer, sizeof(buffer), 0); 
 }
